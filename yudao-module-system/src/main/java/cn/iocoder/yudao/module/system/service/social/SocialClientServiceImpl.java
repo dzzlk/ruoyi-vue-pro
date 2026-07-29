@@ -16,6 +16,7 @@ import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.DesensitizedUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.ReflectUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
@@ -168,10 +169,20 @@ public class SocialClientServiceImpl implements SocialClientService {
 
     @Override
     public String getAuthorizeUrl(Integer socialType, Integer userType, String redirectUri) {
+        // 生成state
+        String state = AuthStateUtils.createState();
+        String key = StrUtil.format(RedisKeyConstants.SOCIAL_AUTH_STATE_TYPE, state);
+        // 保存 state -> socialType
+        stringRedisTemplate.opsForValue()
+            .set(
+                key,
+                String.valueOf(socialType),
+                Duration.ofMinutes(5)
+            );
         // 获得对应的 AuthRequest 实现
         AuthRequest authRequest = buildAuthRequest(socialType, userType);
         // 生成跳转地址
-        String authorizeUri = authRequest.authorize(AuthStateUtils.createState());
+        String authorizeUri = authRequest.authorize(state);
         return HttpUtils.replaceUrlQuery(authorizeUri, "redirect_uri", redirectUri);
     }
 

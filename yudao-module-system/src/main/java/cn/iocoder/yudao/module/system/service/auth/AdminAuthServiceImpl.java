@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.system.service.auth;
 
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.framework.common.util.monitor.TracerUtils;
@@ -17,6 +19,7 @@ import cn.iocoder.yudao.module.system.controller.admin.auth.vo.*;
 import cn.iocoder.yudao.module.system.convert.auth.AuthConvert;
 import cn.iocoder.yudao.module.system.dal.dataobject.oauth2.OAuth2AccessTokenDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
+import cn.iocoder.yudao.module.system.dal.redis.RedisKeyConstants;
 import cn.iocoder.yudao.module.system.enums.logger.LoginLogTypeEnum;
 import cn.iocoder.yudao.module.system.enums.logger.LoginResultEnum;
 import cn.iocoder.yudao.module.system.enums.oauth2.OAuth2ClientConstants;
@@ -33,6 +36,7 @@ import com.google.common.annotations.VisibleForTesting;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +73,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private CaptchaService captchaService;
     @Resource
     private SmsCodeApi smsCodeApi;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 验证码的开关，默认为 true
@@ -170,9 +176,13 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     @Override
     public AuthLoginRespVO socialLogin(AuthSocialLoginReqVO reqVO) {
+        Integer socialType =
+            getSocialTypeByState(reqVO.getState());
         // 使用 code 授权码，进行登录。然后，获得到绑定的用户编号
-        SocialUserRespDTO socialUser = socialUserService.getSocialUserByCode(UserTypeEnum.ADMIN.getValue(), reqVO.getType(),
+        SocialUserRespDTO socialUser = socialUserService.getSocialUserByCode(UserTypeEnum.ADMIN.getValue(), socialType,
                 reqVO.getCode(), reqVO.getState());
+        String key = StrUtil.format(RedisKeyConstants.SOCIAL_AUTH_STATE_TYPE, reqVO.getState());
+        stringRedisTemplate.delete(key);
         if (socialUser == null || socialUser.getUserId() == null) {
             throw exception(AUTH_THIRD_LOGIN_NOT_BIND);
         }
@@ -185,6 +195,22 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
         // 创建 Token 令牌，记录登录日志
         return createTokenAfterLoginSuccess(user.getId(), user.getUsername(), LoginLogTypeEnum.LOGIN_SOCIAL);
+    }
+
+    private Integer getSocialTypeByState(String state) {
+        String key = StrUtil.format(RedisKeyConstants.SOCIAL_AUTH_STATE_TYPE, state);
+        String type =
+            stringRedisTemplate.opsForValue()
+                .get(key);
+
+
+        Assert.notNull(
+            type,
+            "社交登录 state 已失效"
+        );
+
+
+        return Integer.valueOf(type);
     }
 
     @VisibleForTesting

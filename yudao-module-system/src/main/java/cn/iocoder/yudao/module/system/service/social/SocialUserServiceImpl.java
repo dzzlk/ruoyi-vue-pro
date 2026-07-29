@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.system.service.social;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.system.api.social.dto.SocialUserBindReqDTO;
@@ -11,9 +12,11 @@ import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserBindDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserDO;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserBindMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserMapper;
+import cn.iocoder.yudao.module.system.dal.redis.RedisKeyConstants;
 import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthUser;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -45,6 +48,8 @@ public class SocialUserServiceImpl implements SocialUserService {
 
     @Resource
     private SocialClientService socialClientService;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public List<SocialUserDO> getSocialUserList(Long userId, Integer userType) {
@@ -60,9 +65,18 @@ public class SocialUserServiceImpl implements SocialUserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String bindSocialUser(SocialUserBindReqDTO reqDTO) {
+        String key = StrUtil.format(RedisKeyConstants.SOCIAL_AUTH_STATE_TYPE, reqDTO.getState());
+        String type =
+            stringRedisTemplate.opsForValue()
+                .get(key);
+        Assert.notNull(
+            type,
+            "社交登录 state 已失效"
+        );
         // 获得社交用户
-        SocialUserDO socialUser = authSocialUser(reqDTO.getSocialType(), reqDTO.getUserType(),
+        SocialUserDO socialUser = authSocialUser(Integer.valueOf(type), reqDTO.getUserType(),
                 reqDTO.getCode(), reqDTO.getState());
+        stringRedisTemplate.delete(key);
         Assert.notNull(socialUser, "社交用户不能为空");
 
         // 社交用户可能之前绑定过别的用户，需要进行解绑

@@ -106,5 +106,13 @@ public interface RedisKeyConstants {
      * VALUE 数据格式 String, 模版信息
      */
     String WXA_SUBSCRIBE_TEMPLATE = "wxa_subscribe_template";
+    /**
+     * 社交登录 state 与 socialType 映射
+     *
+     * value:
+     * socialType
+     */
+    public static final String SOCIAL_AUTH_STATE_TYPE =
+        "social_auth_state_type:{}";
 
 }
