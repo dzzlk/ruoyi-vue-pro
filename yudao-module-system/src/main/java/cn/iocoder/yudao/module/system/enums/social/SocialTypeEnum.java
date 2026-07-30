@@ -17,6 +17,13 @@ import java.util.Arrays;
 public enum SocialTypeEnum implements ArrayValuable<Integer> {
 
     /**
+     * GITHUB
+     *
+     * @see <a href="https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps/">接入文档</a>
+     */
+    GITHUB(50, "GITHUB"),
+
+    /**
      * Gitee
      *
      * @see <a href="https://gitee.com/api/v5/oauth_doc#/">接入文档</a>
